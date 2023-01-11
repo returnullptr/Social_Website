@@ -75,7 +75,7 @@ def signin(request):
 
         # if user exists
         if user is not None:
-            messages.info(request, "Successfully Logged In")
+            # messages.info(request, "Successfully Logged In")
             auth.login(request, user)
             return redirect('/')
         # if user does not exist
@@ -109,7 +109,7 @@ def signup(request):
             else:
                 user = User.objects.create_user(username=username, email=email, password=password)
                 user.save()
-                messages.info(request, "Successfully Signed Up")
+                # messages.info(request, "Successfully Signed Up")
 
                 # login
                 user_login = auth.authenticate(username=username, password=password)
@@ -187,7 +187,7 @@ def upload(request):
     if request.method == 'POST':
         user = request.user.username
         image = request.FILES.get('image_upload')
-        caption = request.POST('caption')
+        caption = request.POST['caption']
 
         new_post = Post.objects.create(user=user, image=image, caption=caption)
         new_post.save()
@@ -202,3 +202,85 @@ def logout(request):
     auth.logout(request)
 
     return redirect('signin')
+
+@login_required(login_url='signin')
+def profile(request, pk):
+    # current user
+    user_object = User.objects.get(username=pk)
+    user_profile = Profile.objects.get(user=user_object)
+    user_posts = Post.objects.filter(user=pk)
+    user_post_count = len(user_posts)
+    follower = request.user.username
+
+    # user being looked at
+    user = pk
+
+    # if already subscribed, only unsubscribe option is given
+    if FollowerCount.objects.filter(follower=follower, user=user).first():
+        button_text = 'Unfollow'
+    else:
+        button_text = 'Follow'
+
+    # info of the user being looked at
+    user_followers = len(FollowerCount.objects.filter(user=pk))
+    user_following = len(FollowerCount.objects.filter(follower=pk))
+
+    context = {
+        'user_object': user_object,
+        'user_profile': user_profile,
+        'user_posts': user_posts,
+        'user_post_count': user_post_count,
+        'button_text': button_text,
+        'user_followers': user_followers,
+        'user_following': user_following,
+    }
+
+    return render(request, 'profile.html', context)
+
+@login_required(login_url='signin')
+def follow(request):
+    if request.method == 'POST':
+        # current operating user
+        follower = request.POST['follower']
+        # user being looked at
+        user = request.POST['user']
+
+        # delete
+        if FollowerCount.objects.filter(follower=follower, user=user).first():
+            delete_follower = FollowerCount.objects.get(follower=follower, user=user)
+            delete_follower.delete()
+
+            return redirect('/profile' + user)
+
+        # add
+        else:
+            new_follower = FollowerCount.objects.create(follower=follower, user=user)
+            new_follower.save()
+
+            return redirect('/profile' + user)
+
+    else:
+        return redirect('/')
+
+@login_required(login_url='signin')
+def like_post(request):
+    username = request.user.username
+    post_id = request.GET.get('post_id')
+    post = Post.objects.get(id=post_id)
+
+    like_filter = LikePost.objects.filter(post_id=post_id, username=username).first()
+    # if liked by current user
+    if not like_filter:
+        new_like = LikePost.objects.create(post_id=post_id, username=username)
+        new_like.save()
+        post.count_of_likes += 1
+        post.save()
+
+        return redirect('/')
+
+    # if not liked by current user
+    else:
+        like_filter.delete()
+        post.save()
+
+        return redirect('/')
