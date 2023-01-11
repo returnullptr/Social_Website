@@ -1,6 +1,6 @@
 # Social_Website
 
-Still working on it :)
+A simple python practice project :)
 
 Python 
 + django 
